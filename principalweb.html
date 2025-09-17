@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investment Calculator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #e2e8f0;
+        }
+        .container-card {
+            background-color: #ffffff;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .input-group label {
+            font-weight: 500;
+        }
+        .input-field, .select-field {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-field:focus, .select-field:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+        #results {
+            transition: all 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="container-card w-full max-w-2xl p-8 space-y-8">
+        <!-- Header -->
+        <header class="text-center">
+            <h1 class="text-3xl font-bold text-gray-800">Investment Calculation</h1>
+            <p class="mt-2 text-gray-500">Calculate maturity value based on simple interest.</p>
+        </header>
+
+        <!-- Input Form -->
+        <form id="investmentForm" class="space-y-6">
+            <!-- Financial Details Section -->
+            <div class="space-y-4">
+                <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Financial Details</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="input-group">
+                        <label for="principal" class="block text-sm text-gray-600 mb-1">Principal Amount ($)</label>
+                        <input type="number" id="principal" class="input-field" placeholder="e.g., 100000" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="tenor" class="block text-sm text-gray-600 mb-1">Investment Tenor (Years)</label>
+                        <input type="number" id="tenor" class="input-field" placeholder="e.g., 5" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="effectiveRate" class="block text-sm text-gray-600 mb-1">Effective Rate (decimal)</label>
+                        <input type="number" id="effectiveRate" class="input-field" step="0.001" placeholder="e.g., 0.10 for 10%" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="effectiveDate" class="block text-sm text-gray-600 mb-1">Effective Date</label>
+                        <input type="date" id="effectiveDate" class="input-field" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="maturityDate" class="block text-sm text-gray-600 mb-1">Maturity Date</label>
+                        <input type="date" id="maturityDate" class="input-field" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parties Section -->
+            <div class="space-y-4">
+                <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Parties Involved</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="input-group">
+                        <label for="issuerName" class="block text-sm text-gray-600 mb-1">Issuer Name</label>
+                        <input type="text" id="issuerName" class="input-field" placeholder="e.g., ABC Inc." required>
+                    </div>
+                    <div class="input-group">
+                        <label for="lenderName" class="block text-sm text-gray-600 mb-1">Lender Name</label>
+                        <input type="text" id="lenderName" class="input-field" placeholder="e.g., John Doe" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="guarantorName" class="block text-sm text-gray-600 mb-1">Guarantor Name</label>
+                        <input type="text" id="guarantorName" class="input-field" placeholder="Optional">
+                    </div>
+                    <div class="input-group">
+                        <label for="advisorName" class="block text-sm text-gray-600 mb-1">Advisor Name</label>
+                        <input type="text" id="advisorName" class="input-field" placeholder="Optional">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Submit Button -->
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200">Calculate Investment</button>
+
+            <!-- Error Message -->
+            <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                <strong class="font-bold">Error!</strong>
+                <span class="block sm:inline" id="error-text">All fields are required.</span>
+            </div>
+
+        </form>
+
+        <!-- Results Section -->
+        <div id="results" class="hidden mt-8 space-y-4 text-gray-700">
+            <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Calculation Summary</h2>
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span class="font-medium">Principal Amount:</span>
+                    <span id="output-principal"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">Calculated Maturity Value:</span>
+                    <span id="output-maturity-value" class="text-green-600 font-bold"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">10% Withholding Tax:</span>
+                    <span id="output-withholding-tax" class="text-red-600 font-bold"></span>
+                </div>
+                <div class="flex justify-between text-lg">
+                    <span class="font-bold">Final Amount Due:</span>
+                    <span id="output-amount-due" class="font-extrabold text-blue-600"></span>
+                </div>
+                <p class="mt-4 text-sm text-gray-500 italic">
+                    <i class="fa-solid fa-circle-info"></i> A 10% withholding tax is deducted from the maturity value as per the calculation.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('investmentForm');
+            const resultsDiv = document.getElementById('results');
+            const errorMessageDiv = document.getElementById('error-message');
+            const errorTextSpan = document.getElementById('error-text');
+
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+
+                // Get values from form inputs
+                const principal = parseFloat(document.getElementById('principal').value);
+                const tenor = parseFloat(document.getElementById('tenor').value);
+                const effectiveRate = parseFloat(document.getElementById('effectiveRate').value);
+
+                // Validation
+                if (isNaN(principal) || principal <= 0 || isNaN(tenor) || tenor <= 0 || isNaN(effectiveRate) || effectiveRate <= 0) {
+                    errorTextSpan.textContent = "Please fill in all required fields with valid numbers.";
+                    errorMessageDiv.classList.remove('hidden');
+                    resultsDiv.classList.add('hidden');
+                    return;
+                }
+                
+                errorMessageDiv.classList.add('hidden');
+
+                // Perform the calculation (logic from Python script)
+                const maturityValue = principal * (1 + effectiveRate * tenor);
+                const withholdingTax = maturityValue * 0.10;
+                const amountDue = maturityValue - withholdingTax;
+
+                // Format numbers to currency
+                const formatter = new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                });
+
+                // Display results
+                document.getElementById('output-principal').textContent = formatter.format(principal);
+                document.getElementById('output-maturity-value').textContent = formatter.format(maturityValue);
+                document.getElementById('output-withholding-tax').textContent = formatter.format(withholdingTax);
+                document.getElementById('output-amount-due').textContent = formatter.format(amountDue);
+
+                // Show the results section
+                resultsDiv.classList.remove('hidden');
+            });
+        });
+    </script>
+</body>
+</html>

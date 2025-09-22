@@ -1,99 +1,114 @@
 import datetime
 
-def calculate_maturity_value(principal: float, effective_rate: float, tenor_years: float) -> tuple[float, float, float]:
+def get_user_input():
     """
-    Calculates the maturity value, withholding tax, and final amount due
-    based on simple interest.
+    Prompts the user for investment details and returns them in a dictionary.
+    Handles potential EOFError for non-interactive environments.
+    """
+    inputs = {}
+    try:
+        inputs['principal'] = float(input("Enter Principal amount: "))
+        inputs['currency'] = input("Enter Currency (e.g., USD): ").upper()
+        inputs['issuer_name'] = input("Enter Issuer Name: ")
+        inputs['lender_name'] = input("Enter Lender Name: ")
+        inputs['guarantor_name'] = input("Enter Guarantor Name: ")
+        inputs['advisor_name'] = input("Enter Advisor Name: ")
+        inputs['tenor_value'] = float(input("Enter Investment Tenor value: "))
+        inputs['tenor_unit'] = input("Enter Investment Tenor unit (days, months, years): ").lower()
+        inputs['effective_rate'] = float(input("Enter Effective Rate (e.g., 0.1 for 10%): "))
+        
+        effective_date_str = input("Enter Effective Date (YYYY-MM-DD): ")
+        inputs['effective_date'] = datetime.datetime.strptime(effective_date_str, '%Y-%m-%d').date()
 
+    except (ValueError, EOFError) as e:
+        print(f"An error occurred during input: {e}")
+        return None
+    
+    return inputs
+
+def calculate_investment(principal, tenor_value, tenor_unit, effective_rate, effective_date):
+    """
+    Calculates the maturity value, withholding tax, and final amount due.
+    
     Args:
         principal (float): The initial investment amount.
-        effective_rate (float): The annual simple interest rate (e.g., 0.05 for 5%).
-        tenor_years (float): The investment period in years.
-
+        tenor_value (float): The duration of the investment.
+        tenor_unit (str): The unit of the duration (days, months, or years).
+        effective_rate (float): The simple interest rate per year.
+        effective_date (datetime.date): The start date of the investment.
+    
     Returns:
-        tuple[float, float, float]: A tuple containing the maturity value,
-                                    withholding tax, and final amount due.
+        tuple: A tuple containing the maturity value, withholding tax, final amount due, and maturity date.
     """
-    # Calculate maturity value using the simple interest formula
-    maturity_value = principal * (1 + effective_rate * tenor_years)
+    # Calculate maturity date
+    maturity_date = effective_date
+    if tenor_unit == 'years':
+        maturity_date = effective_date.replace(year=effective_date.year + int(tenor_value))
+    elif tenor_unit == 'months':
+        total_months = effective_date.month + int(tenor_value)
+        year_change = total_months // 12
+        month_change = total_months % 12
+        maturity_date = effective_date.replace(year=effective_date.year + year_change, month=month_change)
+    elif tenor_unit == 'days':
+        maturity_date = effective_date + datetime.timedelta(days=tenor_value)
+    
+    # Convert tenor to years for the simple interest formula
+    tenor_in_years = 0
+    if tenor_unit == 'years':
+        tenor_in_years = tenor_value
+    elif tenor_unit == 'months':
+        tenor_in_years = tenor_value / 12
+    elif tenor_unit == 'days':
+        tenor_in_years = tenor_value / 365.25  # Use 365.25 for leap year consideration
 
-    # Calculate the 10% withholding tax
-    withholding_tax = maturity_value * 0.10
-
-    # Calculate the final amount due after tax
+    # Calculate final maturity value
+    maturity_value = principal * (1 + effective_rate * tenor_in_years)
+    
+    # Calculate withholding tax from the interest generated
+    interest_generated = maturity_value - principal
+    withholding_tax = interest_generated * 0.10
+    
+    # Calculate final amount due
     amount_due = maturity_value - withholding_tax
 
-    return maturity_value, withholding_tax, amount_due
+    return maturity_value, withholding_tax, amount_due, maturity_date
 
-def get_user_input(prompt: str, type_cast: callable = str):
+def display_summary(inputs, maturity_value, withholding_tax, amount_due, maturity_date):
     """
-    Gets user input and handles potential ValueError for numeric inputs
-    and EOFError for non-interactive environments.
+    Prints a summary of the investment details and calculations.
+    
+    Args:
+        inputs (dict): A dictionary containing all user inputs.
+        maturity_value (float): The calculated final maturity value.
+        withholding_tax (float): The calculated withholding tax.
+        amount_due (float): The calculated final amount due.
+        maturity_date (datetime.date): The calculated maturity date.
     """
-    while True:
-        try:
-            user_input = input(prompt)
-            # Check for empty input and continue the loop if found
-            if not user_input.strip():
-                print("Input cannot be empty. Please try again.")
-                continue
-            return type_cast(user_input)
-        except ValueError:
-            print("Invalid input. Please enter a valid number.")
-        except EOFError:
-            print("\nError: End of input stream reached. The script requires interactive input.")
-            return None
+    print("\n--- Investment Summary ---")
+    print(f"Principal Amount: {inputs['currency']} {inputs['principal']:.2f}")
+    print(f"Issuer Name: {inputs['issuer_name']}")
+    print(f"Lender Name: {inputs['lender_name']}")
+    print(f"Guarantor Name: {inputs['guarantor_name']}")
+    print(f"Advisor Name: {inputs['advisor_name']}")
+    print(f"Investment Tenor: {inputs['tenor_value']} {inputs['tenor_unit']}")
+    print(f"Effective Date: {inputs['effective_date'].strftime('%Y-%m-%d')}")
+    print(f"Maturity Date: {maturity_date.strftime('%Y-%m-%d')}")
+    print(f"Effective Rate: {inputs['effective_rate'] * 100:.2f}%")
+    print("-" * 25)
+    print(f"Calculated Maturity Value: {inputs['currency']} {maturity_value:.2f}")
+    print(f"Withholding Tax (10% on interest): {inputs['currency']} {withholding_tax:.2f}")
+    print(f"Final Amount Due: {inputs['currency']} {amount_due:.2f}")
 
 if __name__ == "__main__":
-    print("--- Investment Calculation Script ---")
-
-    # Get all the required inputs from the user
-    try:
-        principal = get_user_input("Enter Principal amount: ", float)
-        issuer_name = input("Enter Issuer Name: ")
-        lender_name = input("Enter Lender Name: ")
-        guarantor_name = input("Enter Guarantor Name: ")
-        advisor_name = input("Enter Advisor Name: ")
-        investment_tenor = get_user_input("Enter Investment Tenor (in years): ", float)
-        effective_date_str = input("Enter Effective Date (YYYY-MM-DD): ")
-        maturity_date_str = input("Enter Maturity Date (YYYY-MM-DD): ")
-        effective_rate = get_user_input("Enter Effective Rate (e.g., 0.10 for 10%): ", float)
-    except EOFError as e:
-        print(f"\nAn error occurred: {e}. The script requires interactive input and could not find it.")
-        exit()
-    except Exception as e:
-        print(f"An unexpected error occurred during input: {e}")
-        exit()
-
-    # Check if any input failed before continuing
-    if any(var is None for var in [principal, investment_tenor, effective_rate]):
-        print("Script terminated due to missing required input.")
-        exit()
-
-    # Perform the calculation
-    maturity_value, withholding_tax, amount_due = calculate_maturity_value(
-        principal, effective_rate, investment_tenor
-    )
-
-    # Format currency values for a clean display
-    currency_format = "{:,.2f}"
-
-    # Print the summary of investment details
-    print("\n--- Investment Details Summary ---")
-    print(f"Principal Amount: {currency_format.format(principal)}")
-    print(f"Issuer Name: {issuer_name}")
-    print(f"Lender Name: {lender_name}")
-    print(f"Guarantor Name: {guarantor_name}")
-    print(f"Advisor Name: {advisor_name}")
-    print(f"Investment Tenor: {investment_tenor} years")
-    print(f"Effective Date: {effective_date_str}")
-    print(f"Maturity Date: {maturity_date_str}")
-    print(f"Effective Rate: {effective_rate * 100:.2f}%")
-    print("-" * 30)
-
-    # Print the final calculated values
-    print(f"Calculated Maturity Value: {currency_format.format(maturity_value)}")
-    print(f"10% Withholding tax in the sum of {currency_format.format(withholding_tax)} which sall be deducted from the Maturity Value")
-    print(f"Final Amount Due: {currency_format.format(amount_due)}")
-    print("-" * 30)
-    print("Thank you for using the Investment Calculation Script!")
+    investment_inputs = get_user_input()
+    
+    if investment_inputs:
+        maturity_value, withholding_tax, amount_due, maturity_date = calculate_investment(
+            investment_inputs['principal'],
+            investment_inputs['tenor_value'],
+            investment_inputs['tenor_unit'],
+            investment_inputs['effective_rate'],
+            investment_inputs['effective_date']
+        )
+        
+        display_summary(investment_inputs, maturity_value, withholding_tax, amount_due, maturity_date)

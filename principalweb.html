@@ -150,16 +150,64 @@
         </div>
 
         <!-- Rollover Section -->
+        <div id="rolloverSection" class="hidden mt-8 space-y-4 text-gray-700">
+            <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Investment Rollover</h2>
+            <div class="space-y-4">
+                <p class="text-sm text-gray-600">Use the final amount due as the new principal and choose whether to reuse previous tenor/rate or enter new values.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">Tenor Option</label>
+                        <select id="rolloverTenorOption" class="select-field">
+                            <option value="reuse">Use previous tenor</option>
+                            <option value="new">Enter new tenor</option>
+                        </select>
+                    </div>
+                    <div id="rolloverTenorInputs" class="hidden">
+                        <label class="block text-sm text-gray-600 mb-1">New Tenor</label>
+                        <div class="flex space-x-2">
+                            <input type="number" id="rolloverTenorValue" class="input-field flex-grow" placeholder="e.g., 5">
+                            <select id="rolloverTenorUnit" class="select-field w-1/3">
+                                <option value="years">Years</option>
+                                <option value="months">Months</option>
+                                <option value="days">Days</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">Effective Rate Option</label>
+                        <select id="rolloverRateOption" class="select-field">
+                            <option value="reuse">Use previous rate</option>
+                            <option value="new">Enter new rate</option>
+                        </select>
+                    </div>
+                    <div id="rolloverRateInput" class="hidden">
+                        <label class="block text-sm text-gray-600 mb-1">New Effective Rate (decimal)</label>
+                        <input type="number" id="rolloverEffectiveRate" class="input-field" step="0.001" placeholder="e.g., 0.08">
+                    </div>
+                </div>
+
+                <div class="flex space-x-2">
+                    <button id="startRolloverBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Calculate Rollover</button>
+                    <button id="closeRolloverBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Close</button>
+                </div>
+
+                <div id="rolloverError" class="hidden text-red-600 text-sm"></div>
+            </div>
+        </div>
+
+        <!-- Rollover Section -->
         <div id="rolloverPanel" class="hidden mt-6 p-4 bg-gray-50 rounded">
             <h3 class="text-md font-semibold text-gray-700">Investment Rollover</h3>
             <p class="text-sm text-gray-500 mb-3">Final amount will become the new principal. Choose to reuse tenor/rate or enter new values.</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                 <div>
                     <label class="block text-sm text-gray-600 mb-1">Reuse previous tenor?</label>
-                    <label class="inline-flex items-center">
-                        <input type="checkbox" id="reuseTenor" class="mr-2">
-                        <span class="text-sm">Yes</span>
-                    </label>
+                    <select id="reuseTenorSelect" class="select-field">
+                        <option value="yes">Yes (reuse previous tenor)</option>
+                        <option value="no">No — enter new tenor</option>
+                    </select>
                     <div id="newTenorFields" class="mt-2 space-y-2 hidden">
                         <input type="number" id="rollTenorValue" class="input-field" placeholder="Tenor value (e.g., 6)">
                         <select id="rollTenorUnit" class="select-field">
@@ -171,10 +219,10 @@
                 </div>
                 <div>
                     <label class="block text-sm text-gray-600 mb-1">Reuse previous effective rate?</label>
-                    <label class="inline-flex items-center">
-                        <input type="checkbox" id="reuseRate" class="mr-2">
-                        <span class="text-sm">Yes</span>
-                    </label>
+                    <select id="reuseRateSelect" class="select-field">
+                        <option value="yes">Yes (reuse previous rate)</option>
+                        <option value="no">No — enter new rate</option>
+                    </select>
                     <div id="newRateField" class="mt-2 hidden">
                         <input type="number" id="rollEffectiveRate" class="input-field" step="0.001" placeholder="e.g., 0.10">
                     </div>
@@ -203,11 +251,11 @@
             const errorMessageDiv = document.getElementById('error-message');
             const errorTextSpan = document.getElementById('error-text');
             const rolloverPanel = document.getElementById('rolloverPanel');
-            const reuseTenorCheckbox = document.getElementById('reuseTenor');
+            const reuseTenorSelect = document.getElementById('reuseTenorSelect');
             const newTenorFields = document.getElementById('newTenorFields');
             const rollTenorValue = document.getElementById('rollTenorValue');
             const rollTenorUnit = document.getElementById('rollTenorUnit');
-            const reuseRateCheckbox = document.getElementById('reuseRate');
+            const reuseRateSelect = document.getElementById('reuseRateSelect');
             const newRateField = document.getElementById('newRateField');
             const rollEffectiveRate = document.getElementById('rollEffectiveRate');
             const calcRolloverBtn = document.getElementById('calcRollover');
@@ -321,13 +369,13 @@
             });
 
             // rollover UI behavior
-            reuseTenorCheckbox.addEventListener('change', () => {
-                if (reuseTenorCheckbox.checked) newTenorFields.classList.add('hidden');
+            reuseTenorSelect.addEventListener('change', () => {
+                if (reuseTenorSelect.value === 'yes') newTenorFields.classList.add('hidden');
                 else newTenorFields.classList.remove('hidden');
             });
 
-            reuseRateCheckbox.addEventListener('change', () => {
-                if (reuseRateCheckbox.checked) newRateField.classList.add('hidden');
+            reuseRateSelect.addEventListener('change', () => {
+                if (reuseRateSelect.value === 'yes') newRateField.classList.add('hidden');
                 else newRateField.classList.remove('hidden');
             });
 
@@ -369,7 +417,7 @@
                 // determine tenor
                 let tenorVal = rolloverState.tenorValue;
                 let tenorUnitVal = rolloverState.tenorUnit;
-                if (!reuseTenorCheckbox.checked) {
+                if (reuseTenorSelect.value === 'no') {
                     const tv = parseFloat(rollTenorValue.value);
                     if (isNaN(tv) || tv <= 0) {
                         alert('Please enter a valid tenor value (> 0).');
@@ -386,7 +434,7 @@
 
                 // determine rate
                 let rateVal = rolloverState.effectiveRate;
-                if (!reuseRateCheckbox.checked) {
+                if (reuseRateSelect.value === 'no') {
                     const rv = parseFloat(rollEffectiveRate.value);
                     if (isNaN(rv)) {
                         alert('Please enter a valid effective rate (numeric).');
@@ -429,9 +477,9 @@
                 rolloverPanel.classList.add('hidden');
                 rolloverResultsDiv.classList.add('hidden');
                 // reset rollover inputs
-                reuseTenorCheckbox.checked = true;
+                reuseTenorSelect.value = 'yes';
                 newTenorFields.classList.add('hidden');
-                reuseRateCheckbox.checked = true;
+                reuseRateSelect.value = 'yes';
                 newRateField.classList.add('hidden');
             });
         });

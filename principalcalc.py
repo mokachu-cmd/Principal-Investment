@@ -59,7 +59,7 @@ def calculate_investment(principal, tenor_value, tenor_unit, effective_rate, eff
     elif tenor_unit == 'months':
         tenor_in_years = tenor_value / 12
     elif tenor_unit == 'days':
-        tenor_in_years = tenor_value / 365.25  # Use 365.25 for leap year consideration
+        tenor_in_years = tenor_value / 365  # Use 365.25 for leap year consideration
 
     # Calculate final maturity value
     maturity_value = principal * (1 + effective_rate * tenor_in_years)

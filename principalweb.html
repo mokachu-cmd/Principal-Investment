@@ -103,7 +103,7 @@
                     </div>
                     <div class="input-group">
                         <label for="guarantorName" class="block text-sm text-gray-600 mb-1">Guarantor Name</label>
-                        <input type="text" id="guarantorName" class="input-field" placeholder="Optional">
+                        <input type="text" id="guarantorName" class="input-field" placeholder="e.g., Jane Doe" required>
                     </div>
                     <div class="input-group">
                         <label for="advisorName" class="block text-sm text-gray-600 mb-1">Advisor Name</label>
@@ -148,6 +148,44 @@
                 </p>
             </div>
         </div>
+
+        <!-- Rollover Section -->
+        <div id="rolloverPanel" class="hidden mt-6 p-4 bg-gray-50 rounded">
+            <h3 class="text-md font-semibold text-gray-700">Investment Rollover</h3>
+            <p class="text-sm text-gray-500 mb-3">Final amount will become the new principal. Choose to reuse tenor/rate or enter new values.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Reuse previous tenor?</label>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="reuseTenor" class="mr-2">
+                        <span class="text-sm">Yes</span>
+                    </label>
+                    <div id="newTenorFields" class="mt-2 space-y-2 hidden">
+                        <input type="number" id="rollTenorValue" class="input-field" placeholder="Tenor value (e.g., 6)">
+                        <select id="rollTenorUnit" class="select-field">
+                            <option value="years">Years</option>
+                            <option value="months">Months</option>
+                            <option value="days">Days</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Reuse previous effective rate?</label>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="reuseRate" class="mr-2">
+                        <span class="text-sm">Yes</span>
+                    </label>
+                    <div id="newRateField" class="mt-2 hidden">
+                        <input type="number" id="rollEffectiveRate" class="input-field" step="0.001" placeholder="e.g., 0.10">
+                    </div>
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <button id="calcRollover" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Calculate Rollover</button>
+                <button id="finishRollovers" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Finish Rollovers</button>
+            </div>
+            <div id="rolloverResults" class="mt-4 hidden"></div>
+        </div>
     </div>
 
     <script>
@@ -160,9 +198,22 @@
             const effectiveDateInput = document.getElementById('effectiveDate');
             const maturityDateInput = document.getElementById('maturityDate');
             const currencyInput = document.getElementById('currency');
+            const guarantorInput = document.getElementById('guarantorName');
             const resultsDiv = document.getElementById('results');
             const errorMessageDiv = document.getElementById('error-message');
             const errorTextSpan = document.getElementById('error-text');
+            const rolloverPanel = document.getElementById('rolloverPanel');
+            const reuseTenorCheckbox = document.getElementById('reuseTenor');
+            const newTenorFields = document.getElementById('newTenorFields');
+            const rollTenorValue = document.getElementById('rollTenorValue');
+            const rollTenorUnit = document.getElementById('rollTenorUnit');
+            const reuseRateCheckbox = document.getElementById('reuseRate');
+            const newRateField = document.getElementById('newRateField');
+            const rollEffectiveRate = document.getElementById('rollEffectiveRate');
+            const calcRolloverBtn = document.getElementById('calcRollover');
+            const finishRolloversBtn = document.getElementById('finishRollovers');
+            const rolloverResultsDiv = document.getElementById('rolloverResults');
+            let rolloverState = null; // store current rollover context
 
             function calculateMaturityDate() {
                 const effectiveDate = effectiveDateInput.value;
@@ -205,7 +256,12 @@
 
                 // Validation
                 if (isNaN(principal) || principal <= 0 || isNaN(tenor) || tenor <= 0 || isNaN(effectiveRate) || effectiveRate <= 0 || !currencyCode.trim() || !effectiveDateInput.value) {
-                    errorTextSpan.textContent = "Please fill in all required fields with valid numbers and dates.";
+                    // check guarantor
+                    if (!guarantorInput.value.trim()) {
+                        errorTextSpan.textContent = "Guarantor Name is required. Please enter a guarantor name.";
+                    } else {
+                        errorTextSpan.textContent = "Please fill in all required fields with valid numbers and dates.";
+                    }
                     errorMessageDiv.classList.remove('hidden');
                     resultsDiv.classList.add('hidden');
                     return;
@@ -240,11 +296,143 @@
                     document.getElementById('output-withholding-tax').textContent = formatter.format(withholdingTax);
                     document.getElementById('output-amount-due').textContent = formatter.format(amountDue);
                     resultsDiv.classList.remove('hidden');
+                    // show rollover control panel
+                    rolloverPanel.classList.remove('hidden');
+
+                    // initialize rolloverState
+                    rolloverState = {
+                        principal: principal,
+                        currency: currencyCode.toUpperCase(),
+                        issuerName: document.getElementById('issuerName').value.trim(),
+                        lenderName: document.getElementById('lenderName').value.trim(),
+                        guarantorName: guarantorInput.value.trim(),
+                        advisorName: document.getElementById('advisorName').value.trim(),
+                        tenorValue: tenor,
+                        tenorUnit: tenorUnitSelect.value,
+                        effectiveRate: effectiveRate,
+                        effectiveDate: effectiveDateInput.value,
+                        maturityDate: maturityDateInput.value
+                    };
                 } catch (error) {
                     errorTextSpan.textContent = "Invalid currency code. Please enter a valid code like USD or EUR.";
                     errorMessageDiv.classList.remove('hidden');
                     resultsDiv.classList.add('hidden');
                 }
+            });
+
+            // rollover UI behavior
+            reuseTenorCheckbox.addEventListener('change', () => {
+                if (reuseTenorCheckbox.checked) newTenorFields.classList.add('hidden');
+                else newTenorFields.classList.remove('hidden');
+            });
+
+            reuseRateCheckbox.addEventListener('change', () => {
+                if (reuseRateCheckbox.checked) newRateField.classList.add('hidden');
+                else newRateField.classList.remove('hidden');
+            });
+
+            function formatDateISO(d) {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            function calculateInvestmentJS(principal, tenor, unit, rate, effectiveDateStr) {
+                const effDate = new Date(effectiveDateStr);
+                const date = new Date(effDate.getTime());
+                if (unit === 'years') {
+                    date.setFullYear(date.getFullYear() + Number(tenor));
+                } else if (unit === 'months') {
+                    date.setMonth(date.getMonth() + Number(tenor));
+                } else if (unit === 'days') {
+                    date.setDate(date.getDate() + Number(tenor));
+                }
+
+                const tenorInYears = unit === 'years' ? Number(tenor) : (unit === 'months' ? Number(tenor) / 12 : Number(tenor) / 365);
+                const maturityValue = principal * (1 + Number(rate) * tenorInYears);
+                const interestGenerated = maturityValue - principal;
+                const withholdingTax = interestGenerated * 0.10;
+                const amountDue = maturityValue - withholdingTax;
+
+                return {
+                    maturityValue,
+                    withholdingTax,
+                    amountDue,
+                    maturityDate: formatDateISO(date)
+                };
+            }
+
+            calcRolloverBtn.addEventListener('click', () => {
+                if (!rolloverState) return;
+
+                // determine tenor
+                let tenorVal = rolloverState.tenorValue;
+                let tenorUnitVal = rolloverState.tenorUnit;
+                if (!reuseTenorCheckbox.checked) {
+                    const tv = parseFloat(rollTenorValue.value);
+                    if (isNaN(tv) || tv <= 0) {
+                        alert('Please enter a valid tenor value (> 0).');
+                        return;
+                    }
+                    const tu = rollTenorUnit.value;
+                    if (!['days', 'months', 'years'].includes(tu)) {
+                        alert("Please select a valid tenor unit: days, months or years.");
+                        return;
+                    }
+                    tenorVal = tv;
+                    tenorUnitVal = tu;
+                }
+
+                // determine rate
+                let rateVal = rolloverState.effectiveRate;
+                if (!reuseRateCheckbox.checked) {
+                    const rv = parseFloat(rollEffectiveRate.value);
+                    if (isNaN(rv)) {
+                        alert('Please enter a valid effective rate (numeric).');
+                        return;
+                    }
+                    rateVal = rv;
+                }
+
+                // use previous maturity as effective date
+                const effDateStr = rolloverState.maturityDate;
+
+                const res = calculateInvestmentJS(rolloverState.principal, tenorVal, tenorUnitVal, rateVal, effDateStr);
+
+                // display rollover results (append)
+                try {
+                    const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: rolloverState.currency });
+                    rolloverResultsDiv.classList.remove('hidden');
+                    rolloverResultsDiv.innerHTML = `\n                        <div class="border p-3 rounded bg-white">\n                            <div class=\"flex justify-between\">\n                                <span class=\"font-medium\">Principal Amount:</span>\n                                <span>${formatter.format(rolloverState.principal)}</span>\n                            </div>\n                            <div class=\"flex justify-between\">\n                                <span class=\"font-medium\">Calculated Maturity Value:</span>\n                                <span class=\"text-green-600 font-bold\">${formatter.format(res.maturityValue)}</span>\n                            </div>\n                            <div class=\"flex justify-between\">\n                                <span class=\"font-medium\">10% Withholding Tax:</span>\n                                <span class=\"text-red-600 font-bold\">${formatter.format(res.withholdingTax)}</span>\n                            </div>\n                            <div class=\"flex justify-between text-lg mt-2\">\n                                <span class=\"font-bold\">Final Amount Due:</span>\n                                <span class=\"font-extrabold text-blue-600\">${formatter.format(res.amountDue)}</span>\n                            </div>\n                            <div class=\"mt-2 text-sm text-gray-600\">Maturity Date: ${res.maturityDate}</div>\n                        </div>`;
+
+                    // update rolloverState for potential next rollover
+                    rolloverState.principal = res.amountDue;
+                    rolloverState.tenorValue = tenorVal;
+                    rolloverState.tenorUnit = tenorUnitVal;
+                    rolloverState.effectiveRate = rateVal;
+                    rolloverState.effectiveDate = effDateStr;
+                    rolloverState.maturityDate = res.maturityDate;
+
+                    // also update main results display to reflect latest amount
+                    document.getElementById('output-principal').textContent = formatter.format(res.amountDue);
+                    document.getElementById('output-maturity-value').textContent = formatter.format(res.maturityValue);
+                    document.getElementById('output-withholding-tax').textContent = formatter.format(res.withholdingTax);
+                    document.getElementById('output-amount-due').textContent = formatter.format(res.amountDue);
+
+                } catch (e) {
+                    alert('Invalid currency code for formatting rollover results.');
+                }
+            });
+
+            finishRolloversBtn.addEventListener('click', () => {
+                rolloverPanel.classList.add('hidden');
+                rolloverResultsDiv.classList.add('hidden');
+                // reset rollover inputs
+                reuseTenorCheckbox.checked = true;
+                newTenorFields.classList.add('hidden');
+                reuseRateCheckbox.checked = true;
+                newRateField.classList.add('hidden');
             });
         });
     </script>

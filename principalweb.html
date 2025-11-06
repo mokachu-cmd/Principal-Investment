@@ -75,8 +75,8 @@
                         </div>
                     </div>
                     <div class="input-group">
-                        <label for="effectiveRate" class="block text-sm text-gray-600 mb-1">Effective Rate (decimal)</label>
-                        <input type="number" id="effectiveRate" class="input-field" step="0.001" placeholder="e.g., 0.10 for 10%" required>
+                        <label for="effectiveRate" class="block text-sm text-gray-600 mb-1">Effective Rate (e.g., 8 or 0.08)</label>
+                            <input type="number" id="effectiveRate" class="input-field" step="0.001" placeholder="e.g., 8 for 8% or 0.08 for 8%" required>
                     </div>
                     <div class="input-group">
                         <label for="effectiveDate" class="block text-sm text-gray-600 mb-1">Effective Date</label>
@@ -126,22 +126,34 @@
         <!-- Results Section -->
         <div id="results" class="hidden mt-8 space-y-4 text-gray-700">
             <h2 class="text-lg font-semibold text-gray-700 border-b pb-2">Calculation Summary</h2>
-            <div class="space-y-2">
+                <div class="space-y-2">
                 <div class="flex justify-between">
                     <span class="font-medium">Principal Amount:</span>
                     <span id="output-principal"></span>
                 </div>
                 <div class="flex justify-between">
-                    <span class="font-medium">Calculated Maturity Value:</span>
-                    <span id="output-maturity-value" class="text-green-600 font-bold"></span>
+                    <span class="font-medium">Annual (YoY) Interest:</span>
+                    <span id="output-yearly-interest" class="text-green-600 font-bold"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">Day Length (inclusive):</span>
+                    <span id="output-day-length"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">Year Fraction (actual/actual):</span>
+                    <span id="output-year-fraction"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">Total Interest Due:</span>
+                    <span id="output-total-interest" class="text-green-600 font-bold"></span>
                 </div>
                 <div class="flex justify-between">
                     <span class="font-medium">10% Withholding Tax:</span>
                     <span id="output-withholding-tax" class="text-red-600 font-bold"></span>
                 </div>
                 <div class="flex justify-between text-lg">
-                    <span class="font-bold">Final Amount Due:</span>
-                    <span id="output-amount-due" class="font-extrabold text-blue-600"></span>
+                    <span class="font-bold">Net Maturity (Principal + Total Interest):</span>
+                    <span id="output-net-maturity" class="font-extrabold text-blue-600"></span>
                 </div>
                 <p class="mt-4 text-sm text-gray-500 italic">
                     <i class="fa-solid fa-circle-info"></i> The 10% withholding tax is deducted from the interest generated.
@@ -273,13 +285,40 @@
                     return;
                 }
 
-                const date = new Date(effectiveDate);
+                // Parse YYYY-MM-DD safely (avoid timezone shift)
+                const parts = effectiveDate.split('-').map(Number);
+                let date = new Date(parts[0], parts[1] - 1, parts[2]);
+
+                function daysInMonth(y, m) { // m: 0-11
+                    return new Date(y, m + 1, 0).getDate();
+                }
+
+                function addMonthsSafe(d, months) {
+                    months = Number(months);
+                    const y = d.getFullYear();
+                    const m = d.getMonth();
+                    const total = m + months;
+                    const newY = y + Math.floor(total / 12);
+                    const newM = ((total % 12) + 12) % 12; // handle negatives
+                    const lastDay = daysInMonth(newY, newM);
+                    const newD = Math.min(d.getDate(), lastDay);
+                    return new Date(newY, newM, newD);
+                }
+
+                function addYearsSafe(d, years) {
+                    years = Number(years);
+                    const newY = d.getFullYear() + years;
+                    const lastDay = daysInMonth(newY, d.getMonth());
+                    const newD = Math.min(d.getDate(), lastDay);
+                    return new Date(newY, d.getMonth(), newD);
+                }
+
                 if (tenorUnit === 'years') {
-                    date.setFullYear(date.getFullYear() + tenor);
+                    date = addYearsSafe(date, tenor);
                 } else if (tenorUnit === 'months') {
-                    date.setMonth(date.getMonth() + tenor);
+                    date = addMonthsSafe(date, tenor);
                 } else if (tenorUnit === 'days') {
-                    date.setDate(date.getDate() + tenor);
+                    date = new Date(date.getFullYear(), date.getMonth(), date.getDate() + Math.trunc(tenor));
                 }
 
                 // Format date to YYYY-MM-DD
@@ -299,8 +338,13 @@
                 // Get values from form inputs
                 const principal = parseFloat(principalInput.value);
                 const tenor = parseFloat(tenorInput.value);
-                const effectiveRate = parseFloat(effectiveRateInput.value);
+                let rateInputVal = parseFloat(effectiveRateInput.value);
                 const currencyCode = currencyInput.value;
+
+                // Normalize effective rate: accept 8 for 8% or 0.08 for 8%
+                // Convert to percent number (e.g., 8.0)
+                if (isNaN(rateInputVal)) rateInputVal = 0;
+                let ratePercent = rateInputVal <= 1 ? rateInputVal * 100.0 : rateInputVal;
 
                 // Validation
                 if (isNaN(principal) || principal <= 0 || isNaN(tenor) || tenor <= 0 || isNaN(effectiveRate) || effectiveRate <= 0 || !currencyCode.trim() || !effectiveDateInput.value) {
@@ -317,19 +361,15 @@
                 
                 errorMessageDiv.classList.add('hidden');
 
-                // Convert tenor to years for the simple interest calculation
-                let tenorInYears = tenor;
-                if (tenorUnitSelect.value === 'months') {
-                    tenorInYears = tenor / 12;
-                } else if (tenorUnitSelect.value === 'days') {
-                    tenorInYears = tenor / 365 // Use 365.25 for average days per year
-                }
-
-                // Perform the calculation (logic from Python script)
-                const maturityValue = principal * (1 + effectiveRate * tenorInYears);
-                const interestGenerated = maturityValue - principal;
-                const withholdingTax = interestGenerated * 0.10;
-                const amountDue = maturityValue - withholdingTax;
+                // Perform the calculation using actual/actual year fraction
+                const res = calculateInvestmentJS(principal, tenor, tenorUnitSelect.value, ratePercent, effectiveDateInput.value);
+                const maturityDate = res.maturityDate; // iso string
+                const yearlyInterest = res.yearlyInterest;
+                const dayLength = res.dayLength;
+                const yearFraction = res.yearFraction;
+                const totalInterest = res.totalInterest;
+                const withholdingTax = res.withholdingTax;
+                const netMaturity = res.netMaturity;
 
                 // Format numbers to currency based on user selection
                 try {
@@ -340,9 +380,12 @@
 
                     // Display results
                     document.getElementById('output-principal').textContent = formatter.format(principal);
-                    document.getElementById('output-maturity-value').textContent = formatter.format(maturityValue);
+                    document.getElementById('output-yearly-interest').textContent = formatter.format(yearlyInterest);
+                    document.getElementById('output-day-length').textContent = `${dayLength} days`;
+                    document.getElementById('output-year-fraction').textContent = yearFraction.toFixed(8);
+                    document.getElementById('output-total-interest').textContent = formatter.format(totalInterest);
                     document.getElementById('output-withholding-tax').textContent = formatter.format(withholdingTax);
-                    document.getElementById('output-amount-due').textContent = formatter.format(amountDue);
+                    document.getElementById('output-net-maturity').textContent = formatter.format(netMaturity);
                     resultsDiv.classList.remove('hidden');
                     // show rollover control panel
                     rolloverPanel.classList.remove('hidden');
@@ -357,9 +400,10 @@
                         advisorName: document.getElementById('advisorName').value.trim(),
                         tenorValue: tenor,
                         tenorUnit: tenorUnitSelect.value,
-                        effectiveRate: effectiveRate,
+                        // store normalized effective rate as percent (e.g., 8.0)
+                        ratePercent: ratePercent,
                         effectiveDate: effectiveDateInput.value,
-                        maturityDate: maturityDateInput.value
+                        maturityDate: res.maturityDate
                     };
                 } catch (error) {
                     errorTextSpan.textContent = "Invalid currency code. Please enter a valid code like USD or EUR.";
@@ -386,28 +430,78 @@
                 return `${year}-${month}-${day}`;
             }
 
-            function calculateInvestmentJS(principal, tenor, unit, rate, effectiveDateStr) {
-                const effDate = new Date(effectiveDateStr);
-                const date = new Date(effDate.getTime());
-                if (unit === 'years') {
-                    date.setFullYear(date.getFullYear() + Number(tenor));
-                } else if (unit === 'months') {
-                    date.setMonth(date.getMonth() + Number(tenor));
-                } else if (unit === 'days') {
-                    date.setDate(date.getDate() + Number(tenor));
+            function calculateInvestmentJS(principal, tenor, unit, ratePercent, effectiveDateStr) {
+                // ratePercent is a number like 8.0 (percent)
+                // Parse effectiveDateStr as YYYY-MM-DD to avoid timezone issues
+                const parts = effectiveDateStr.split('-').map(Number);
+                let effDate = new Date(parts[0], parts[1] - 1, parts[2]);
+
+                function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+
+                function addMonthsSafe(d, months) {
+                    months = Number(months);
+                    const y = d.getFullYear();
+                    const m = d.getMonth();
+                    const total = m + months;
+                    const newY = y + Math.floor(total / 12);
+                    const newM = ((total % 12) + 12) % 12;
+                    const lastDay = daysInMonth(newY, newM);
+                    const newD = Math.min(d.getDate(), lastDay);
+                    return new Date(newY, newM, newD);
                 }
 
-                const tenorInYears = unit === 'years' ? Number(tenor) : (unit === 'months' ? Number(tenor) / 12 : Number(tenor) / 365);
-                const maturityValue = principal * (1 + Number(rate) * tenorInYears);
-                const interestGenerated = maturityValue - principal;
-                const withholdingTax = interestGenerated * 0.10;
-                const amountDue = maturityValue - withholdingTax;
+                function addYearsSafe(d, years) {
+                    years = Number(years);
+                    const newY = d.getFullYear() + years;
+                    const lastDay = daysInMonth(newY, d.getMonth());
+                    const newD = Math.min(d.getDate(), lastDay);
+                    return new Date(newY, d.getMonth(), newD);
+                }
+
+                let matDate = new Date(effDate);
+                if (unit === 'years') {
+                    matDate = addYearsSafe(effDate, tenor);
+                } else if (unit === 'months') {
+                    matDate = addMonthsSafe(effDate, tenor);
+                } else if (unit === 'days') {
+                    matDate = new Date(effDate.getFullYear(), effDate.getMonth(), effDate.getDate() + Math.trunc(tenor));
+                }
+
+                // compute inclusive day length
+                const dayLength = Math.trunc((matDate - effDate) / (1000 * 60 * 60 * 24)) + 1;
+
+                // actual/actual year fraction accounting for leap years
+                function daysInYear(y) { return ((y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0)) ? 366 : 365; }
+
+                let yearFraction = 0;
+                const startYear = effDate.getFullYear();
+                const endYear = matDate.getFullYear();
+                for (let y = startYear; y <= endYear; y++) {
+                    const yearStart = new Date(y, 0, 1);
+                    const yearEnd = new Date(y, 11, 31);
+                    const overlapStart = effDate > yearStart ? effDate : yearStart;
+                    const overlapEnd = matDate < yearEnd ? matDate : yearEnd;
+                    if (overlapStart <= overlapEnd) {
+                        const overlapDays = Math.trunc((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
+                        yearFraction += overlapDays / daysInYear(y);
+                    }
+                }
+
+                const yearlyInterest = principal * (ratePercent / 100.0);
+                const totalInterest = yearlyInterest * yearFraction;
+                const withholdingTax = totalInterest * 0.10;
+                const netInterest = totalInterest * 0.90;
+                const netMaturity = principal + totalInterest;
 
                 return {
-                    maturityValue,
+                    yearlyInterest,
+                    dayLength,
+                    yearFraction,
+                    totalInterest,
                     withholdingTax,
-                    amountDue,
-                    maturityDate: formatDateISO(date)
+                    netInterest,
+                    netMaturity,
+                    maturityDate: formatDateISO(matDate)
                 };
             }
 
@@ -435,11 +529,12 @@
                 // determine rate
                 let rateVal = rolloverState.effectiveRate;
                 if (reuseRateSelect.value === 'no') {
-                    const rv = parseFloat(rollEffectiveRate.value);
+                    let rv = parseFloat(rollEffectiveRate.value);
                     if (isNaN(rv)) {
                         alert('Please enter a valid effective rate (numeric).');
                         return;
                     }
+                    if (rv > 1) rv = rv / 100.0;
                     rateVal = rv;
                 }
 

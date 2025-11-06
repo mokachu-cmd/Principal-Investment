@@ -16,3 +16,5 @@
 # It then prints out a summary of the investment details along with the calculated maturity value.
 # The following statement is included in the output:
 # "10% Witholding tax in the sum of [Currency Amount] which sall be deducted from the Maturity Value"
+
+This application is designed to keep track of investment amounts
